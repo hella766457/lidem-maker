@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>리듬게임 채보 오토 에디터</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background-color: #121212;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 메인 레이아웃 (좌: 에디터/게임, 우: 컨트롤 패널) */
+        .game-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #1a1a1a;
+            position: relative;
+        }
+
+        .panel-container {
+            width: 380px;
+            background-color: #242424;
+            border-left: 2px solid #333;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        h2 { margin: 0 0 10px 0; color: #00e5ff; font-size: 20px; }
+        label { font-size: 13px; color: #aaa; display: block; margin-bottom: 4px; }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 8px 12px;
+            background-color: #121212;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .row { display: flex; gap: 10px; }
+        .row > div { flex: 1; }
+
+        .btn {
+            background: #00e5ff;
+            color: #000;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            transition: 0.2s;
+            width: 100%;
+        }
+        .btn:hover { background: #00b3cc; }
+        .btn-danger { background: #ff3355; color: white; }
+        .btn-danger:hover { background: #cc002b; }
+        .btn-secondary { background: #444; color: white; }
+        .btn-secondary:hover { background: #666; }
+
+        canvas {
+            border: 2px solid #333;
+            background-color: #000;
+            border-radius: 8px;
+        }
+
+        /* 5초 카운트다운 오버레이 */
+        #countdownOverlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        #countText { font-size: 80px; font-weight: bold; color: #00e5ff; }
+        #countSubText { font-size: 20px; color: #aaa; margin-top: 10px; }
+
+        textarea {
+            height: 180px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 12px;
+            text-align: center;
+            background: #333;
+            color: #888;
+        }
+        .status-recording { background: #ff0055; color: white; animation: pulse 1s infinite; }
+        .status-testing { background: #00e5ff; color: black; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <div id="countdownOverlay">
+            <div id="countText">5</div>
+            <div id="countSubText">준비하세요! 키보드(D, F, J, K)를 입력할 준비를 합니다.</div>
+        </div>
+
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+    </div>
+
+    <div class="panel-container">
+        <h2>🎵 채보 오토 에디터</h2>
+
+        <div id="statusBadge" class="status-badge">대기 중</div>
+
+        <div>
+            <label>곡 ID / 파일명</label>
+            <input type="text" id="songId" value="anzs_raid">
+        </div>
+
+        <div>
+            <label>곡 제목</label>
+            <input type="text" id="songTitle" value="안즈스 레이드 BGM">
+        </div>
+
+        <div class="row">
+            <div>
+                <label>배속 (Speed)</label>
+                <input type="number" id="songSpeed" value="450" step="50">
+            </div>
+            <div>
+                <label>BPM</label>
+                <input type="number" id="songBpm" value="120">
+            </div>
+        </div>
+
+        <div>
+            <label>배속/템포 조절 (현재: <span id="tempoVal">1.0</span>x)</label>
+            <input type="range" id="tempoSlider" min="0.5" max="1.5" step="0.1" value="1.0" oninput="updateTempo(this.value)">
+        </div>
+
+        <hr style="border: 0.5px solid #333; width: 100%;">
+
+        <button id="btnStart" class="btn" onclick="startCountdown()">🔴 스타트 (5초 후 녹화 시작)</button>
+        <button id="btnTest" class="btn btn-secondary" onclick="startTestPlay()" style="display:none;">▶️ 내 채보 테스트하기</button>
+        <button id="btnStop" class="btn btn-danger" onclick="stopAll()" style="display:none;">⏹️ 끄기 (녹화/테스트 중단)</button>
+
+        <hr style="border: 0.5px solid #333; width: 100%;">
+
+        <div>
+            <label>생성된 채보 코드 (JS 파일에 붙여넣기용)</label>
+            <textarea id="outputCode" readonly placeholder="녹화가 끝나면 여기에 코드가 자동으로 생성됩니다."></textarea>
+            <button class="btn btn-secondary" style="margin-top: 5px;" onclick="copyCode()">📋 코드 복사하기</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const keys = ['d', 'f', 'j', 'k'];
+        const laneWidth = 100;
+        const judgeLineY = 500;
+
+        // 상태 변수
+        let mode = "IDLE"; // IDLE, COUNTDOWN, RECORDING, TESTING
+        let recordedNotes = [];
+        let startTime = 0;
+        let animationFrameId = null;
+        let countdownTimer = null;
+        let playSpeed = 1.0;
+
+        // 오디오 요소 (선택 사항: 음악 파일이 있다면 연결 가능)
+        // const bgm = new Audio('songs/anzs_raid.mp3');
+
+        function updateTempo(val) {
+            playSpeed = parseFloat(val);
+            document.getElementById("tempoVal").innerText = playSpeed;
+            // if(bgm) bgm.playbackRate = playSpeed;
+        }
+
+        // 1. 5초 카운트다운 후 시작
+        function startCountdown() {
+            mode = "COUNTDOWN";
+            recordedNotes = [];
+            document.getElementById("outputCode").value = "";
+            
+            document.getElementById("btnStart").style.display = "none";
+            document.getElementById("btnTest").style.display = "none";
+            document.getElementById("btnStop").style.display = "block";
+            
+            const overlay = document.getElementById("countdownOverlay");
+            const countText = document.getElementById("countText");
+            overlay.style.display = "flex";
+
+            let count = 5;
+            countText.innerText = count;
+
+            countdownTimer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countText.innerText = count;
+                } else {
+                    clearInterval(countdownTimer);
+                    overlay.style.display = "none";
+                    startRecording();
+                }
+            }, 1000);
+        }
+
+        // 2. 녹화 시작 (직접 연주)
+        function startRecording() {
+            mode = "RECORDING";
+            startTime = Date.now();
+            updateStatus("🔴 채보 녹화 중... (D, F, J, K를 눌러 채보 생성)", "status-recording");
+            
+            // if(bgm) { bgm.currentTime = 0; bgm.play(); }
+            loop();
+        }
+
+        // 3. 키 입력 감지 (녹화)
+        window.addEventListener("keydown", (e) => {
+            if (mode !== "RECORDING") return;
+
+            const keyIndex = keys.indexOf(e.key.toLowerCase());
+            if (keyIndex !== -1) {
+                // 현재 시간 기록 (템포 반영)
+                let currentTime = ((Date.now() - startTime) / 1000) * playSpeed;
+                
+                recordedNotes.push({
+                    lane: keyIndex,
+                    time: Number(currentTime.toFixed(2))
+                });
+            }
+        });
+
+        // 4. 끄기 / 중단 버튼 누를 때
+        function stopAll() {
+            if (countdownTimer) clearInterval(countdownTimer);
+            document.getElementById("countdownOverlay").style.display = "none";
+
+            if (mode === "RECORDING") {
+                generateJSCode();
+            }
+
+            mode = "IDLE";
+            updateStatus("대기 중", "");
+            
+            document.getElementById("btnStart").style.display = "block";
+            document.getElementById("btnStop").style.display = "none";
+            if (recordedNotes.length > 0) {
+                document.getElementById("btnTest").style.display = "block";
+            }
+
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            drawEmptyCanvas();
+        }
+
+        // 5. 내가 만든 채보 테스트 재생
+        function startTestPlay() {
+            if (recordedNotes.length === 0) return;
+
+            mode = "TESTING";
+            startTime = Date.now();
+            updateStatus("▶️ 채보 테스트 플레이 중...", "status-testing");
+
+            document.getElementById("btnStart").style.display = "none";
+            document.getElementById("btnTest").style.display = "none";
+            document.getElementById("btnStop").style.display = "block";
+
+            loop();
+        }
+
+        // JS 파일 코드 자동 생성
+        function generateJSCode() {
+            const id = document.getElementById("songId").value;
+            const title = document.getElementById("songTitle").value;
+            const bpm = document.getElementById("songBpm").value;
+            const speed = document.getElementById("songSpeed").value;
+
+            const code = `window.SONG_DATABASE = window.SONG_DATABASE || [];
+
+window.SONG_DATABASE.push({
+    id: "${id}",
+    title: "${title}",
+    bpm: ${bpm},
+    keys: 4,
+    difficulty: "Custom",
+    speed: ${speed},
+    notes: ${JSON.stringify(recordedNotes, null, 8)}
+});`;
+
+            document.getElementById("outputCode").value = code;
+        }
+
+        // 캔버스 그리기 루프
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let currentTime = ((Date.now() - startTime) / 1000) * playSpeed;
+            let speed = parseFloat(document.getElementById("songSpeed").value);
+
+            // 레인 선
+            for (let i = 1; i < 4; i++) {
+                ctx.strokeStyle = "#333";
+                ctx.beginPath();
+                ctx.moveTo(i * laneWidth, 0);
+                ctx.lineTo(i * laneWidth, canvas.height);
+                ctx.stroke();
+            }
+
+            // 판정선
+            ctx.strokeStyle = "#ff0055";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, judgeLineY);
+            ctx.lineTo(canvas.width, judgeLineY);
+            ctx.stroke();
+
+            // 녹화된 노트들 그리기
+            recordedNotes.forEach(note => {
+                let timeDiff = note.time - currentTime;
+                let noteY = judgeLineY - (timeDiff * speed);
+
+                if (noteY > -20 && noteY < canvas.height + 20) {
+                    ctx.fillStyle = "#00e5ff";
+                    ctx.fillRect(note.lane * laneWidth + 8, noteY - 10, laneWidth - 16, 20);
+                }
+            });
+
+            // 경과 시간 표시
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 16px sans-serif";
+            ctx.fillText(`Time: ${currentTime.toFixed(2)}s`, 15, 30);
+            ctx.fillText(`Notes: ${recordedNotes.length}`, 15, 55);
+
+            if (mode === "RECORDING" || mode === "TESTING") {
+                animationFrameId = requestAnimationFrame(loop);
+            }
+        }
+
+        function drawEmptyCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 1; i < 4; i++) {
+                ctx.strokeStyle = "#333";
+                ctx.beginPath();
+                ctx.moveTo(i * laneWidth, 0);
+                ctx.lineTo(i * laneWidth, canvas.height);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = "#ff0055";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, judgeLineY);
+            ctx.lineTo(canvas.width, judgeLineY);
+            ctx.stroke();
+        }
+
+        function updateStatus(text, className) {
+            const badge = document.getElementById("statusBadge");
+            badge.innerText = text;
+            badge.className = "status-badge " + className;
+        }
+
+        function copyCode() {
+            const textarea = document.getElementById("outputCode");
+            if (!textarea.value) return;
+            textarea.select();
+            document.execCommand("copy");
+            alert("채보 코드가 클립보드에 복사되었습니다!");
+        }
+
+        drawEmptyCanvas();
+    </script>
+</body>
+</html>
