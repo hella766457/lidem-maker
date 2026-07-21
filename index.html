@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>리듬게임 채보 오토 에디터</title>
+    <title>리듬게임 채보 오토 에디터 (음악 연동)</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -34,11 +34,11 @@
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 12px;
             overflow-y: auto;
         }
 
-        h2 { margin: 0 0 10px 0; color: #00e5ff; font-size: 20px; }
+        h2 { margin: 0 0 5px 0; color: #00e5ff; font-size: 20px; }
         label { font-size: 13px; color: #aaa; display: block; margin-bottom: 4px; }
 
         input, select, textarea {
@@ -82,7 +82,7 @@
         #countdownOverlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             display: none;
             flex-direction: column;
             align-items: center;
@@ -90,10 +90,10 @@
             z-index: 10;
         }
         #countText { font-size: 80px; font-weight: bold; color: #00e5ff; }
-        #countSubText { font-size: 20px; color: #aaa; margin-top: 10px; }
+        #countSubText { font-size: 18px; color: #aaa; margin-top: 10px; text-align: center; padding: 0 20px; }
 
         textarea {
-            height: 180px;
+            height: 160px;
             font-family: monospace;
             font-size: 12px;
             resize: vertical;
@@ -119,7 +119,7 @@
     <div class="game-container">
         <div id="countdownOverlay">
             <div id="countText">5</div>
-            <div id="countSubText">준비하세요! 키보드(D, F, J, K)를 입력할 준비를 합니다.</div>
+            <div id="countSubText">준비하세요! 키보드(D, F, J, K)를 누르면 노트가 기록됩니다.</div>
         </div>
 
         <canvas id="gameCanvas" width="400" height="600"></canvas>
@@ -129,6 +129,11 @@
         <h2>🎵 채보 오토 에디터</h2>
 
         <div id="statusBadge" class="status-badge">대기 중</div>
+
+        <div>
+            <label>🎵 음악 파일 선택 (.mp3)</label>
+            <input type="file" id="audioFile" accept="audio/*" onchange="loadAudioFile(event)">
+        </div>
 
         <div>
             <label>곡 ID / 파일명</label>
@@ -152,20 +157,20 @@
         </div>
 
         <div>
-            <label>배속/템포 조절 (현재: <span id="tempoVal">1.0</span>x)</label>
+            <label>템포/속도 조절 (현재: <span id="tempoVal">1.0</span>x)</label>
             <input type="range" id="tempoSlider" min="0.5" max="1.5" step="0.1" value="1.0" oninput="updateTempo(this.value)">
         </div>
 
-        <hr style="border: 0.5px solid #333; width: 100%;">
+        <hr style="border: 0.5px solid #333; width: 100%; margin: 5px 0;">
 
-        <button id="btnStart" class="btn" onclick="startCountdown()">🔴 스타트 (5초 후 녹화 시작)</button>
+        <button id="btnStart" class="btn" onclick="startCountdown()">🔴 스타트 (5초 후 시작)</button>
         <button id="btnTest" class="btn btn-secondary" onclick="startTestPlay()" style="display:none;">▶️ 내 채보 테스트하기</button>
         <button id="btnStop" class="btn btn-danger" onclick="stopAll()" style="display:none;">⏹️ 끄기 (녹화/테스트 중단)</button>
 
-        <hr style="border: 0.5px solid #333; width: 100%;">
+        <hr style="border: 0.5px solid #333; width: 100%; margin: 5px 0;">
 
         <div>
-            <label>생성된 채보 코드 (JS 파일에 붙여넣기용)</label>
+            <label>생성된 채보 코드</label>
             <textarea id="outputCode" readonly placeholder="녹화가 끝나면 여기에 코드가 자동으로 생성됩니다."></textarea>
             <button class="btn btn-secondary" style="margin-top: 5px;" onclick="copyCode()">📋 코드 복사하기</button>
         </div>
@@ -187,16 +192,29 @@
         let countdownTimer = null;
         let playSpeed = 1.0;
 
-        // 오디오 요소 (선택 사항: 음악 파일이 있다면 연결 가능)
-        // const bgm = new Audio('songs/anzs_raid.mp3');
+        // 음악 오디오 객체
+        let bgm = new Audio();
 
+        // 0. 음악 파일 불러오기
+        function loadAudioFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const fileURL = URL.createObjectURL(file);
+                bgm.src = fileURL;
+                alert("음악 파일이 로드되었습니다!");
+            }
+        }
+
+        // 템포 변경
         function updateTempo(val) {
             playSpeed = parseFloat(val);
             document.getElementById("tempoVal").innerText = playSpeed;
-            // if(bgm) bgm.playbackRate = playSpeed;
+            if (bgm.src) {
+                bgm.playbackRate = playSpeed;
+            }
         }
 
-        // 1. 5초 카운트다운 후 시작
+        // 1. 5초 카운트다운 시작
         function startCountdown() {
             mode = "COUNTDOWN";
             recordedNotes = [];
@@ -225,13 +243,19 @@
             }, 1000);
         }
 
-        // 2. 녹화 시작 (직접 연주)
+        // 2. 녹화 시작
         function startRecording() {
             mode = "RECORDING";
             startTime = Date.now();
-            updateStatus("🔴 채보 녹화 중... (D, F, J, K를 눌러 채보 생성)", "status-recording");
+            updateStatus("🔴 채보 녹화 중... (D, F, J, K를 누르세요)", "status-recording");
             
-            // if(bgm) { bgm.currentTime = 0; bgm.play(); }
+            // 음악 재생
+            if (bgm.src) {
+                bgm.currentTime = 0;
+                bgm.playbackRate = playSpeed;
+                bgm.play();
+            }
+
             loop();
         }
 
@@ -241,7 +265,6 @@
 
             const keyIndex = keys.indexOf(e.key.toLowerCase());
             if (keyIndex !== -1) {
-                // 현재 시간 기록 (템포 반영)
                 let currentTime = ((Date.now() - startTime) / 1000) * playSpeed;
                 
                 recordedNotes.push({
@@ -251,10 +274,16 @@
             }
         });
 
-        // 4. 끄기 / 중단 버튼 누를 때
+        // 4. 끄기 / 중단
         function stopAll() {
             if (countdownTimer) clearInterval(countdownTimer);
             document.getElementById("countdownOverlay").style.display = "none";
+
+            // 음악 정지
+            if (bgm.src) {
+                bgm.pause();
+                bgm.currentTime = 0;
+            }
 
             if (mode === "RECORDING") {
                 generateJSCode();
@@ -273,7 +302,7 @@
             drawEmptyCanvas();
         }
 
-        // 5. 내가 만든 채보 테스트 재생
+        // 5. 테스트 플레이
         function startTestPlay() {
             if (recordedNotes.length === 0) return;
 
@@ -284,6 +313,13 @@
             document.getElementById("btnStart").style.display = "none";
             document.getElementById("btnTest").style.display = "none";
             document.getElementById("btnStop").style.display = "block";
+
+            // 음악 재생
+            if (bgm.src) {
+                bgm.currentTime = 0;
+                bgm.playbackRate = playSpeed;
+                bgm.play();
+            }
 
             loop();
         }
@@ -300,6 +336,7 @@
 window.SONG_DATABASE.push({
     id: "${id}",
     title: "${title}",
+    bgm: "audio/${id}.mp3",
     bpm: ${bpm},
     keys: 4,
     difficulty: "Custom",
@@ -310,7 +347,7 @@ window.SONG_DATABASE.push({
             document.getElementById("outputCode").value = code;
         }
 
-        // 캔버스 그리기 루프
+        // 캔버스 연출 루프
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -334,7 +371,7 @@ window.SONG_DATABASE.push({
             ctx.lineTo(canvas.width, judgeLineY);
             ctx.stroke();
 
-            // 녹화된 노트들 그리기
+            // 노트 그리기
             recordedNotes.forEach(note => {
                 let timeDiff = note.time - currentTime;
                 let noteY = judgeLineY - (timeDiff * speed);
@@ -345,7 +382,7 @@ window.SONG_DATABASE.push({
                 }
             });
 
-            // 경과 시간 표시
+            // 시간 및 노트 수 표시
             ctx.fillStyle = "#fff";
             ctx.font = "bold 16px sans-serif";
             ctx.fillText(`Time: ${currentTime.toFixed(2)}s`, 15, 30);
