@@ -4,35 +4,48 @@
     <meta charset="UTF-8">
     <title>리듬게임 채보 오토 에디터</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
-            background-color: #1a1a1a;
+            background-color: #121212;
             color: #fff;
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: 20px;
+            margin: 0;
         }
         .container {
             max-width: 800px;
             margin: 0 auto;
-            background: #2a2a2a;
-            padding: 20px;
-            border-radius: 10px;
+            background: #1e1e1e;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
         }
-        h2 { color: #00e5ff; }
+        h2 { 
+            color: #00e5ff; 
+            margin-top: 0;
+            text-align: center;
+        }
         .input-group {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
         }
         label {
-            display: inline-block;
-            width: 140px;
+            width: 160px;
             font-weight: bold;
+            font-size: 14px;
+            color: #ccc;
         }
         input[type="text"], input[type="number"] {
-            padding: 8px;
-            background: #333;
-            border: 1px solid #555;
+            flex: 1;
+            padding: 10px;
+            background: #2a2a2a;
+            border: 1px solid #444;
             color: #fff;
-            border-radius: 4px;
-            width: 250px;
+            border-radius: 6px;
+            font-size: 14px;
         }
         input[type="file"] {
             color: #00e5ff;
@@ -40,30 +53,57 @@
         .record-box {
             text-align: center;
             padding: 25px;
-            background: #222;
+            background: #181818;
             border: 2px dashed #00e5ff;
-            border-radius: 8px;
+            border-radius: 10px;
             margin: 20px 0;
         }
         .key-guide {
             font-size: 18px;
             color: #ffbb00;
             margin-top: 10px;
+            font-weight: bold;
+        }
+        .key-display {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .key-btn {
+            width: 50px;
+            height: 50px;
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #aaa;
+            transition: all 0.05s ease;
+        }
+        .key-btn.active {
+            background: #00e5ff;
+            color: #000;
+            box-shadow: 0 0 12px #00e5ff;
+            transform: scale(0.95);
         }
         textarea {
             width: 100%;
-            height: 300px;
-            background: #111;
+            height: 280px;
+            background: #0a0a0a;
             color: #00ff88;
-            font-family: monospace;
-            padding: 10px;
-            border: 1px solid #444;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 12px;
+            border: 1px solid #333;
             border-radius: 6px;
             resize: vertical;
-            box-sizing: border-box;
         }
-        button {
-            padding: 12px 20px;
+        button.copy-btn {
+            width: 100%;
+            padding: 14px;
             background: #00e5ff;
             border: none;
             color: #000;
@@ -71,19 +111,26 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 16px;
+            margin-top: 10px;
+            transition: background 0.2s;
         }
-        button:hover {
+        button.copy-btn:hover {
             background: #00b8cc;
+        }
+        .note-count {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #aaa;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🎵 채보 자동 생성 오토 에디터 (음원 동기화)</h2>
+    <h2>🎵 리듬게임 오토 에디터</h2>
 
     <div class="input-group">
-        <label>1. 음원 파일 선택:</label>
+        <label>1. 내 음원 파일 선택:</label>
         <input type="file" id="audioFileInput" accept="audio/*" onchange="handleAudioSelect(event)">
     </div>
     <div class="input-group">
@@ -96,24 +143,33 @@
     </div>
     <div class="input-group">
         <label>4. 깃허브 음원 파일명:</label>
-        <input type="text" id="audioFileName" value="anzs_raid.mp3" placeholder="예: song.mp3" oninput="updateOutput()">
+        <input type="text" id="audioFileName" value="song.mp3" placeholder="예: song.mp3" oninput="updateOutput()">
     </div>
     <div class="input-group">
-        <label>5. 노트 속도:</label>
+        <label>5. 노트 이동 속도:</label>
         <input type="number" id="songSpeed" value="450" oninput="updateOutput()">
     </div>
 
     <div class="record-box">
         <h3>[ SPACEBAR ] 누르면 음악 재생 + 녹음 시작/정지</h3>
-        <p>음악에 맞춰 키를 누르면 노트가 기록됩니다.</p>
-        <div class="key-guide">사용 키: D, F, J, K</div>
-        <h2 id="statusText" style="color: #ff3355; margin-top:15px;">음원 파일을 선택해 주세요</h2>
+        <p style="color:#aaa; font-size:13px;">※ 입력창 수정 중일 때는 스페이스바가 녹음으로 작동하지 않습니다.</p>
+        
+        <div class="key-guide">입력 키: D, F, J, K</div>
+        
+        <div class="key-display">
+            <div class="key-btn" id="key-d">D</div>
+            <div class="key-btn" id="key-f">F</div>
+            <div class="key-btn" id="key-j">J</div>
+            <div class="key-btn" id="key-k">K</div>
+        </div>
+
+        <h2 id="statusText" style="color: #ff3355; margin-top:20px;">먼저 1번에서 음원 파일(.mp3)을 선택하세요</h2>
+        <div class="note-count">기록된 노트 수: <span id="noteCount" style="color:#00e5ff; font-weight:bold;">0</span>개</div>
     </div>
 
     <h3>최종 생성 코드 (복사해서 곡 JS 파일에 붙여넣기)</h3>
     <textarea id="outputCode" readonly></textarea>
-    <br><br>
-    <button onclick="copyCode()">코드 전체 복사하기</button>
+    <button class="copy-btn" onclick="copyCode()">코드 전체 복사하기</button>
 </div>
 
 <audio id="bgmAudio"></audio>
@@ -125,7 +181,7 @@
     const bgmAudio = document.getElementById('bgmAudio');
     let isAudioLoaded = false;
 
-    // 내 컴퓨터에서 음원 파일 로드 처리
+    // 음원 파일 선택 처리
     function handleAudioSelect(event) {
         const file = event.target.files[0];
         if (file) {
@@ -133,63 +189,97 @@
             bgmAudio.src = fileURL;
             isAudioLoaded = true;
 
-            // 파일명 자동 입력 보조
+            // 파일명 자동 세팅
             document.getElementById('audioFileName').value = file.name;
-            document.getElementById('statusText').innerText = "준비 완료! [SPACEBAR]를 눌러 녹음을 시작하세요.";
-            document.getElementById('statusText').style.color = "#00e5ff";
+            
+            const status = document.getElementById('statusText');
+            status.innerText = "준비 완료! [SPACEBAR]를 누르면 녹음이 시작됩니다.";
+            status.style.color = "#00e5ff";
+            
             updateOutput();
         }
     }
 
-    // 키 입력 감지
+    // 키보드 누름 감지
     window.addEventListener('keydown', (e) => {
-        // 스페이스바로 녹음 및 음악 재생 토글
+        // 입력창(input)을 수정 중일 때는 녹음 동작 방지
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        const key = e.key.toLowerCase();
+
+        // 스페이스바로 녹음 시작/정지
         if (e.code === 'Space') {
             e.preventDefault();
             if (!isAudioLoaded) {
-                alert("먼저 음원 파일(MP3 등)을 선택해 주세요!");
+                alert("상단의 [1. 내 음원 파일 선택]에서 음악 파일을 먼저 선택해 주세요!");
                 return;
             }
             toggleRecord();
             return;
         }
 
-        // 녹음 중일 때 노트 기록 (D, F, J, K)
-        if (isRecording) {
-            const keyIndex = targetKeys.indexOf(e.key.toLowerCase());
-            if (keyIndex !== -1) {
-                // 음악의 현재 재생 시간(currentTime)을 기준으로 노트 입력 시간 채록 (ms 정밀도)
-                const noteTime = parseFloat(bgmAudio.currentTime.toFixed(3));
+        // D, F, J, K 키 눌렀을 때
+        const keyIndex = targetKeys.indexOf(key);
+        if (keyIndex !== -1) {
+            // UI 시각 효과 (버튼 반짝임)
+            const keyEl = document.getElementById(`key-${key}`);
+            if (keyEl) keyEl.classList.add('active');
+
+            // 녹음 중일 때 노트 채록
+            if (isRecording) {
+                // 음악의 현재 재생 시간 기준 (초 단위, 소수점 3자리)
+                const currentTime = bgmAudio.currentTime || 0;
+                const noteTime = parseFloat(currentTime.toFixed(3));
+
                 recordedNotes.push({ time: noteTime, lane: keyIndex });
+                document.getElementById('noteCount').innerText = recordedNotes.length;
                 updateOutput();
             }
         }
     });
 
-    // 음악 종료 시 자동 정지
+    // 키 뗐을 때 UI 원복
+    window.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        const keyEl = document.getElementById(`key-${key}`);
+        if (keyEl) keyEl.classList.remove('active');
+    });
+
+    // 음악이 끝까지 재생되면 자동 녹음 종료
     bgmAudio.onended = () => {
         if (isRecording) toggleRecord();
     };
 
+    // 녹음 토글
     function toggleRecord() {
         isRecording = !isRecording;
         const status = document.getElementById('statusText');
 
         if (isRecording) {
             recordedNotes = [];
+            document.getElementById('noteCount').innerText = "0";
             bgmAudio.currentTime = 0;
-            bgmAudio.play().catch(e => console.error(e));
             
-            status.innerText = "🔴 음악 재생 및 녹음 중... (D, F, J, K 입력)";
-            status.style.color = "#00ff88";
+            let playPromise = bgmAudio.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    status.innerText = "🔴 음악 재생 중! 박자에 맞춰 D, F, J, K를 누르세요!";
+                    status.style.color = "#00ff88";
+                }).catch(err => {
+                    console.error("재생 오류:", err);
+                    isRecording = false;
+                    status.innerText = "오디오 재생에 실패했습니다.";
+                });
+            }
         } else {
             bgmAudio.pause();
-            status.innerText = "⏹️ 녹음 완료! 아래 코드를 복사하세요.";
+            status.innerText = "⏹️ 녹음 완료! 아래 코드를 복사해서 파일에 넣으세요.";
             status.style.color = "#ffbb00";
         }
         updateOutput();
     }
 
+    // 결과 JS 코드 업데이트
     function updateOutput() {
         const title = document.getElementById('songTitle').value || '제목 없음';
         const bpm = parseInt(document.getElementById('songBpm').value) || 120;
@@ -218,11 +308,12 @@ SONG_DATABASE.push({
         document.getElementById('outputCode').value = fullCode;
     }
 
+    // 코드 복사
     function copyCode() {
         const codeText = document.getElementById('outputCode');
         codeText.select();
         document.execCommand('copy');
-        alert("코드가 복사되었습니다! songs/ 폴더 안의 js 파일에 붙여넣으세요.");
+        alert("코드가 클립보드에 복사되었습니다! songs/ 폴더 안의 곡 JS 파일에 붙여넣으세요.");
     }
 
     updateOutput();
